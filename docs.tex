@@ -1,0 +1,147 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.25 of 2026/09/03
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+% T1 fonts will be used to generate the final print and online PDFs,
+% so please use T1 fonts in your manuscript whenever possible.
+% Other font encondings may result in incorrect characters.
+%
+
+\usepackage{newtxtext}       %
+\usepackage[varvw]{newtxmath}       % selects Times Roman as basic font
+
+
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following two lines
+% to display URLs in blue roman font according to Springer's eBook style:
+%\usepackage{color}
+%\renewcommand\UrlFont{\color{blue}\rmfamily}
+%\urlstyle{rm}
+%
+\begin{document}
+%
+\title{BidBots: Auction-Based Coordination of Warehouse Robots}
+\titlerunning{BidBots}
+
+\author{Acalfoaie Bogdan-Mihai}
+%\authorrunning{B.-M. Acalfoaie}
+
+\institute{Faculty of Computer Science, Alexandru Ioan Cuza University, Iași, Romania\\
+\email{bogdan-mihai.acalfoaie@info.uaic.ro}}
+
+\maketitle
+
+\begin{abstract}
+This report presents BidBots, a client/server system that coordinates a
+fleet of simulated warehouse robots. Tasks are allocated through auctions
+based on the Contract Net Protocol, while collisions are prevented by having
+robots reserve their paths in space and time. We describe the system's
+architecture, its TCP-based application protocol, and usage scenarios
+that cover both normal operation and robot failures.
+
+\keywords{Computer networks \and TCP \and Contract Net Protocol \and Multi-robot path planning}
+\end{abstract}
+
+\section{Introduction}
+Modern warehouses rely on fleets of autonomous robots that move products from shelves to delivery stations. Coordinating such a fleet raises two problems: deciding which robot should handle each order, balancing efficiency against battery levels, and making sure that robots sharing the same aisles never collide. BidBots is a client/server system that addresses both problems by coordinating a fleet of simulated robots on a grid-based warehouse map.
+
+Tasks are assigned through auctions based on the Contract Net Protocol~\cite{cnp}: the server announces each delivery, the available robots estimate their own cost, and the task goes to the best bid. The main objectives of the project are:
+
+\begin{itemize}
+  \item \textbf{Auction-based task allocation}: each robot bids according to its distance and battery level.
+  \item \textbf{Collision-free movement}: robots reserve the cells of their path in space and time before moving.
+  \item \textbf{Fault tolerance}: robots that stop responding are detected through heartbeats, and their tasks and reservations are reassigned.
+  \item \textbf{Battery awareness}: robots only bid on tasks they can complete and return to a charging station when their battery runs low.
+  \item \textbf{Evaluation}: a comparison of the auction mechanism against a simple nearest-free-robot assignment.
+\end{itemize}
+
+\section{Applied Technologies}
+
+\begin{itemize}
+  \item \textbf{Transport layer protocol}: the server communicates with all clients over TCP, which guarantees reliable, in-order delivery. Losing or reordering a message (e.g., a task award or a reservation reply) could lead to two robots holding the same task or entering the same cell.
+
+  \item \textbf{Concurrency with one thread per connection}: the main thread accepts incoming connections and creates a dedicated thread for each client. These client threads read their client's messages and update the shared server state accordingly. A separate coordinator thread handles time-based events, such as closing auctions and detecting robots that have stopped responding. All threads access the shared state through a mutex.
+\end{itemize}
+
+\section{Application Structure}
+
+\subsection{Modeling Concepts}
+
+\begin{itemize}
+  \item \textbf{Warehouse map}: a 2D grid of cells, each being a corridor, a
+        shelf, a charging station or a delivery station. In each step, a robot
+        moves to a neighboring cell or waits in place.
+  \item \textbf{Simulation clock}: time is divided into discrete steps
+        (ticks), advanced by the organizer thread. All movements and
+        reservations refer to these steps.
+  \item \textbf{Robot}: identified by an ID, with a position, a battery level
+        and a state (idle, executing a task, charging or dead).
+  \item \textbf{Task}: a delivery from a shelf to a delivery station. A task
+        goes through the states \emph{announced}, \emph{awarded},
+        \emph{picked up} and \emph{delivered}, and is auctioned again if its
+        robot fails.
+  \item \textbf{Auction}: opened by the organizer for each task; it collects
+        bids until a deadline, after which the task is awarded to the lowest
+        bid.
+  \item \textbf{Reservation}: a robot's claim on cell $(x, y)$ at step $t$.
+        Robots plan their paths locally and must reserve them before moving;
+        the server rejects conflicting reservations, including two robots
+        swapping cells in the same step.
+  \item \textbf{Heartbeat}: a periodic message through which a robot signals
+        that it is alive. A robot that misses heartbeats for longer than a
+        threshold is considered dead.
+\end{itemize}
+
+\subsection{Components}
+
+Fig.~\ref{fig:arch} shows the architecture of the system. It consists of a
+concurrent server and three types of clients, each running as a separate
+process and communicating with the server over TCP:
+
+\begin{itemize}
+  \item \textbf{Robot client}: simulates a single robot. It bids on tasks,
+        plans its path, reserves it, moves and sends heartbeats.
+  \item \textbf{Order client}: submits delivery orders and receives
+        confirmations.
+  \item \textbf{Visual client}: subscribes to the server and displays the
+        warehouse map and the robots in real time.
+\end{itemize}
+
+Inside the server, the main thread accepts incoming connections and spawns a
+dedicated handler thread for each client. The organiser thread advances the
+simulation clock, manages auctions and detects failed robots. All threads
+communicate through the shared state, which is protected by a mutex.
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{architecture.png}
+\caption{BidBots architecture. All clients first connect through the main
+thread, which spawns a dedicated handler thread for each connection.}
+\label{fig:arch}
+\end{figure}
+
+\section{Communication Protocol}
+TODO
+
+\section{Usage Scenarios}
+\subsection{Success Scenarios}
+TODO
+\subsection{Failure Scenarios}
+TODO
+
+\section{Conclusions}
+TODO
+
+\begin{thebibliography}{8}
+\bibitem{cnp}
+Smith, R.G.: The Contract Net Protocol: High-Level Communication and Control
+in a Distributed Problem Solver. IEEE Transactions on Computers C-29(12), 1104--1113 (1980)
+\end{thebibliography}
+
+\end{document}
